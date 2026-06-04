@@ -1,741 +1,707 @@
-import React, { useState, useEffect, useRef } from 'react';
-
-// מערך הדירוגים והתוויות בעברית
-const RATING_LABELS = {
-  1: 'כלל לא',
-  2: 'במידה מועטה',
-  3: 'במידה בינונית',
-  4: 'במידה רבה',
-  5: 'במידה רבה מאוד'
-};
-
-const RATING_COLORS = {
-  1: 'text-red-500 bg-red-500/10 dark:bg-red-500/20 border-red-200 dark:border-red-800',
-  2: 'text-orange-500 bg-orange-500/10 dark:bg-orange-500/20 border-orange-200 dark:border-orange-800',
-  3: 'text-amber-500 bg-amber-500/10 dark:bg-amber-500/20 border-amber-200 dark:border-amber-800',
-  4: 'text-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/20 border-indigo-200 dark:border-indigo-800',
-  5: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-200 dark:border-emerald-800'
-};
-
-export default function App() {
-  // ניהול מצב כהה/בהיר
-  const [darkMode, setDarkMode] = useState(true);
-
-  // מצבי הטופס
-  const [step, setStep] = useState(0); // 0: פתיח, 1-7: שאלות, 8: הצלחה
-  const [submitted, setSubmitted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState({});
-
-  // שמירת ערכי התשובות (ממופים ישירות למזהי ה-Google Form שלך)
-  const [formData, setFormData] = useState({
-    relevance: 0,       // entry.1354847855
-    efficiency: 0,      // entry.42177787
-    confidence: 0,      // entry.729909560
-    satisfaction: 0,    // entry.771194989
-    continuation: '',   // entry.552114596
-    preferredTool: '',  // entry.1239429889
-    feedback: ''        // entry.351607428
-  });
-
-  // כלי בינה מלאכותית מומלצים לבחירה מהירה
-  const quickTools = ['NotebookLM', 'Gemini', 'ChatGPT', 'OpenEvidence', 'אחר...'];
-
-  // הפעלת מצב כהה ב-body
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
-
-  // עדכון תשובה בודדת
-  const updateAnswer = (key, value) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
-    // ניקוי שגיאות אם המשתמש מילא את השדה
-    if (errors[key]) {
-      setErrors(prev => ({ ...prev, [key]: null }));
-    }
-  };
-
-  // מעבר לשלב הבא עם וולידציה
-  const handleNext = () => {
-    if (validateStep(step)) {
-      setStep(prev => prev + 1);
-    }
-  };
-
-  const handlePrev = () => {
-    setStep(prev => Math.max(0, prev - 1));
-  };
-
-  // בדיקת תקינות הקלט לשלב הנוכחי
-  const validateStep = (currentStep) => {
-    const newErrors = {};
-    if (currentStep === 1 && formData.relevance === 0) newErrors.relevance = 'אנא בחרו דירוג כדי להמשיך';
-    if (currentStep === 2 && formData.efficiency === 0) newErrors.efficiency = 'אנא בחרו דירוג כדי להמשיך';
-    if (currentStep === 3 && formData.confidence === 0) newErrors.confidence = 'אנא בחרו דירוג כדי להמשיך';
-    if (currentStep === 4 && formData.satisfaction === 0) newErrors.satisfaction = 'אנא בחרו דירוג כדי להמשיך';
-    if (currentStep === 5 && !formData.continuation) newErrors.continuation = 'אנא בחרו את אחת האפשרויות כדי להמשיך';
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // שליחה ל-Google Form דרך iframe נסתר
-  const formRef = useRef(null);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
-
-  const handleSubmit = (e) => {
-    if (e) e.preventDefault();
-    setIsSubmitting(true);
-
-    // עדכון הערכים בטופס הנסתר שפונה לגוגל פורמס
-    document.getElementById('g-relevance').value = formData.relevance;
-    document.getElementById('g-efficiency').value = formData.efficiency;
-    document.getElementById('g-confidence').value = formData.confidence;
-    document.getElementById('g-satisfaction').value = formData.satisfaction;
-    document.getElementById('g-continuation').value = formData.continuation;
-    document.getElementById('g-tool').value = formData.preferredTool;
-    document.getElementById('g-feedback').value = formData.feedback;
-
-    // הגשת הטופס הנסתר
-    formRef.current.submit();
-
-    // יצירת השהייה קלה לצורך תצוגת אנימציה יפה לפני מעבר למסך ההצלחה
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSubmitted(true);
-      setStep(8);
-    }, 1500);
-  };
-
-  // חישוב אחוז התקדמות בטופס
-  const progressPercent = Math.min(100, Math.round((step / 7) * 100));
-
-  return (
-    <div dir="rtl" className={`min-h-screen transition-colors duration-300 font-sans ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
-      
-      {/* רקע דקורטיבי - הילה זוהרת מתחת לאלמנטים */}
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-10 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-      {/* תפריט עליון קומפקטי */}
-      <header className="relative z-10 max-w-4xl mx-auto px-4 py-4 flex justify-between items-center border-b border-slate-200 dark:border-slate-800/60">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-600/30 text-white font-bold">
-            AI
-          </div>
-          <span className="font-bold text-lg tracking-wide bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
-            חדשנות ובריאות
-          </span>
-        </div>
-        
-        {/* כפתור מצב לילה ומצב יום */}
-        <button 
-          onClick={() => setDarkMode(!darkMode)}
-          className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all duration-200 focus:outline-none"
-          title={darkMode ? "מצב יום" : "מצב לילה"}
-        >
-          {darkMode ? (
-            <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 9h-1m14.071-7.071l-.707.707M6.343 17.657l-.707.707m2.828-9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-          ) : (
-            <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-            </svg>
-          )}
-        </button>
-      </header>
-
-      {/* אזור התוכן הראשי */}
-      <main className="relative z-10 max-w-2xl mx-auto px-4 py-8 md:py-16">
-        
-        {/* בר התקדמות מונחה-שלבים */}
-        {step > 0 && step < 8 && (
-          <div className="mb-8">
-            <div className="flex justify-between items-center text-xs text-slate-400 mb-2">
-              <span>שלב {step} מתוך 7</span>
-              <span className="font-semibold text-indigo-500 dark:text-indigo-400">{progressPercent}% הושלם</span>
-            </div>
-            <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300 ease-out"
-                style={{ width: `${progressPercent}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
-
-        {/* שלב 0: מסך פתיחה והוראות */}
-        {step === 0 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-10 shadow-xl transition-all duration-300">
-            <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center mb-6 mx-auto">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            
-            <h1 className="text-3xl font-extrabold text-center mb-4 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
-              משוב לסדנת בינה מלאכותית
-            </h1>
-            
-            <p className="text-center text-slate-500 dark:text-slate-400 text-base md:text-lg mb-8 leading-relaxed max-w-lg mx-auto">
-              תודה רבה על השתתפותך בסדנה! אנו מעריכים מאוד את דעתך. מילוי המשב אורך כדקה בלבד, ויסייע לנו לשפר את ההדרכות הבאות.
-            </p>
-
-            <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/30 dark:border-indigo-900/30 rounded-2xl p-4 mb-8">
-              <h2 className="font-bold text-sm text-indigo-700 dark:text-indigo-400 mb-2">הנחיות לדירוג:</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                אנא דרגו את מידת הסכמתכם עם ההיגדים הבאים בסולם של <span className="font-bold">1 עד 5</span>, כאשר:
-                <br />
-                <span className="inline-flex flex-wrap gap-x-2 gap-y-1 mt-1 font-semibold text-indigo-600/90 dark:text-indigo-400">
-                  <span>1 = כלל לא</span>
-                  <span>|</span>
-                  <span>2 = במידה מועטה</span>
-                  <span>|</span>
-                  <span>3 = במידה בינונית</span>
-                  <span>|</span>
-                  <span>4 = במידה רבה</span>
-                  <span>|</span>
-                  <span>5 = במידה רבה מאוד</span>
-                </span>
-              </p>
-            </div>
-
-            <button 
-              onClick={() => setStep(1)}
-              className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 active:scale-[0.98] transition-all duration-200 text-lg flex items-center justify-center gap-2"
-            >
-              <span>בואו נתחיל במשוב</span>
-              <svg className="w-5 h-5 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </button>
-          </div>
-        )}
-
-        {/* שלב 1: רלוונטיות התכנים */}
-        {step === 1 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 1</span>
-            <h2 className="text-xl md:text-2xl font-bold mb-6 text-slate-800 dark:text-slate-100 leading-snug">
-              עד כמה התכנים והכלים שהוצגו בסדנה <span className="text-indigo-500 font-extrabold">(OpenEvidence, Gemini, ChatGPT, NotebookLM)</span> רלוונטיים לעבודתך היומיומית בשטח?
-            </h2>
-            
-            <StarRatingInput 
-              value={formData.relevance} 
-              onChange={(val) => updateAnswer('relevance', val)} 
-            />
-
-            {errors.relevance && (
-              <p className="text-red-500 text-sm mt-4 flex items-center gap-1 font-semibold animate-pulse">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
-                {errors.relevance}
-              </p>
-            )}
-
-            <div className="flex gap-4 mt-10">
-              <button 
-                onClick={handlePrev}
-                className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
-              >
-                חזרה
-              </button>
-              <button 
-                onClick={handleNext}
-                className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all duration-150 flex items-center justify-center gap-2"
-              >
-                <span>המשך</span>
-                <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* שלב 2: פוטנציאל יעילות */}
-        {step === 2 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 2</span>
-            <h2 className="text-xl md:text-2xl font-bold mb-6 text-slate-800 dark:text-slate-100 leading-snug">
-              <span className="border-b-2 border-indigo-500/30">פוטנציאל יעילות:</span> אני מאמין/ה ששילוב הכלים הללו בעבודה שלי ישפר את האפקטיביות או יחסוך לי זמן.
-            </h2>
-            
-            <StarRatingInput 
-              value={formData.efficiency} 
-              onChange={(val) => updateAnswer('efficiency', val)} 
-            />
-
-            {errors.efficiency && (
-              <p className="text-red-500 text-sm mt-4 flex items-center gap-1 font-semibold animate-pulse">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
-                {errors.efficiency}
-              </p>
-            )}
-
-            <div className="flex gap-4 mt-10">
-              <button 
-                onClick={handlePrev}
-                className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
-              >
-                חזרה
-              </button>
-              <button 
-                onClick={handleNext}
-                className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all duration-150 flex items-center justify-center gap-2"
-              >
-                <span>המשך</span>
-                <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* שלב 3: תחושת ביטחון ראשונית */}
-        {step === 3 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 3</span>
-            <h2 className="text-xl md:text-2xl font-bold mb-6 text-slate-800 dark:text-slate-100 leading-snug">
-              <span className="border-b-2 border-indigo-500/30">תחושת ביטחון ראשונית:</span> בעקבות הסדנה, אני מרגיש/ה מספיק ביטחון להתחיל להתנסות בכלים הללו באופן עצמאי.
-            </h2>
-            
-            <StarRatingInput 
-              value={formData.confidence} 
-              onChange={(val) => updateAnswer('confidence', val)} 
-            />
-
-            {errors.confidence && (
-              <p className="text-red-500 text-sm mt-4 flex items-center gap-1 font-semibold animate-pulse">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
-                {errors.confidence}
-              </p>
-            )}
-
-            <div className="flex gap-4 mt-10">
-              <button 
-                onClick={handlePrev}
-                className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
-              >
-                חזרה
-              </button>
-              <button 
-                onClick={handleNext}
-                className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all duration-150 flex items-center justify-center gap-2"
-              >
-                <span>המשך</span>
-                <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* שלב 4: שביעות רצון כללית */}
-        {step === 4 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 4</span>
-            <h2 className="text-xl md:text-2xl font-bold mb-6 text-slate-800 dark:text-slate-100 leading-snug">
-              <span className="border-b-2 border-indigo-500/30">שביעות רצון כללית:</span> באופן כללי, אני מרוצה מאיכות הסדנה, מהעברת החומר ומהמבנה שלה.
-            </h2>
-            
-            <StarRatingInput 
-              value={formData.satisfaction} 
-              onChange={(val) => updateAnswer('satisfaction', val)} 
-            />
-
-            {errors.satisfaction && (
-              <p className="text-red-500 text-sm mt-4 flex items-center gap-1 font-semibold animate-pulse">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
-                {errors.satisfaction}
-              </p>
-            )}
-
-            <div className="flex gap-4 mt-10">
-              <button 
-                onClick={handlePrev}
-                className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
-              >
-                חזרה
-              </button>
-              <button 
-                onClick={handleNext}
-                className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all duration-150 flex items-center justify-center gap-2"
-              >
-                <span>המשך</span>
-                <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* שלב 5: המשכיות והכשרה מתקדמת */}
-        {step === 5 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 5</span>
-            <h2 className="text-xl md:text-2xl font-bold mb-6 text-slate-800 dark:text-slate-100 leading-snug">
-              במידה ותתקיים <span className="text-purple-500 font-bold">הכשרת המשך מתקדמת</span> בנושא, מהי מידת העניין שלך להשתתף בה?
-            </h2>
-            
-            <div className="space-y-4">
-              {[
-                {
-                  id: 'option-no',
-                  label: 'לא מעוניין/ת בהכשרה נוספת.',
-                  icon: (
-                    <svg className="w-6 h-6 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  )
-                },
-                {
-                  id: 'option-maybe',
-                  label: 'מעוניין/ת, אך מעדיף/ה קודם לתרגל לבד בשטח.',
-                  icon: (
-                    <svg className="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                  )
-                },
-                {
-                  id: 'option-yes',
-                  label: 'מעוניין/ת מאוד בהכשרת המשך מורחבת ומעמיקה יותר',
-                  icon: (
-                    <svg className="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  )
+<!DOCTYPE html>
+<html lang="he" dir="rtl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>משוב לסדנת בינה מלאכותית</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            950: '#020617'
+                        }
+                    }
                 }
-              ].map((opt) => {
-                const isSelected = formData.continuation === opt.label;
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() => updateAnswer('continuation', opt.label)}
-                    className={`w-full p-5 text-right rounded-2xl border transition-all duration-200 flex items-center justify-between gap-4 ${
-                      isSelected 
-                        ? 'bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-500 ring-2 ring-indigo-500/10' 
-                        : 'bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0">
-                        {opt.icon}
-                      </div>
-                      <span className={`text-sm md:text-base font-semibold ${isSelected ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {opt.label}
-                      </span>
-                    </div>
-                    
-                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300 dark:border-slate-700'}`}>
-                      {isSelected && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {errors.continuation && (
-              <p className="text-red-500 text-sm mt-4 flex items-center gap-1 font-semibold animate-pulse">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
-                {errors.continuation}
-              </p>
-            )}
-
-            <div className="flex gap-4 mt-10">
-              <button 
-                onClick={handlePrev}
-                className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
-              >
-                חזרה
-              </button>
-              <button 
-                onClick={handleNext}
-                className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all duration-150 flex items-center justify-center gap-2"
-              >
-                <span>המשך</span>
-                <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* שלב 6: כלי להעמקה */}
-        {step === 6 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 6</span>
-            <h2 className="text-xl md:text-2xl font-bold mb-2 text-slate-800 dark:text-slate-100 leading-snug">
-              האם יש כלי ספציפי מבין אלו שהוצגו היום, שהיית רוצה להעמיק בו יותר?
-            </h2>
-            <p className="text-sm text-slate-400 mb-6">לחצו על הכלים לבחירה מהירה או הקלידו בחופשיות:</p>
-            
-            {/* צ'יפים של כלים לבחירה מהירה */}
-            <div className="flex flex-wrap gap-2 mb-6">
-              {quickTools.map((tool) => {
-                const isSelected = formData.preferredTool === tool;
-                return (
-                  <button
-                    key={tool}
-                    onClick={() => {
-                      if (tool === 'אחר...') {
-                        updateAnswer('preferredTool', '');
-                      } else {
-                        updateAnswer('preferredTool', tool);
-                      }
-                    }}
-                    className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all duration-150 ${
-                      isSelected 
-                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/20' 
-                        : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    {tool}
-                  </button>
-                );
-              })}
-            </div>
-
-            <textarea
-              value={formData.preferredTool}
-              onChange={(e) => updateAnswer('preferredTool', e.target.value)}
-              placeholder="כתבו כאן את שם הכלי..."
-              className="w-full h-32 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-slate-800 dark:text-slate-100 transition-all duration-150 resize-none font-sans"
-            />
-
-            <div className="flex gap-4 mt-10">
-              <button 
-                onClick={handlePrev}
-                className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150"
-              >
-                חזרה
-              </button>
-              <button 
-                onClick={handleNext}
-                className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 transition-all duration-150 flex items-center justify-center gap-2"
-              >
-                <span>המשך</span>
-                <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* שלב 7: הערות נוספות לשיפור והגשה ישירה */}
-        {step === 7 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 7</span>
-            <h2 className="text-xl md:text-2xl font-bold mb-2 text-slate-800 dark:text-slate-100 leading-snug">
-              הערות נוספות לשיפור
-            </h2>
-            <p className="text-sm text-slate-400 mb-6">יש לכם רעיון, פידבק מיוחד או הצעה לשיפור להכשרות הבאות? נשמח לשמוע:</p>
-
-            <textarea
-              value={formData.feedback}
-              onChange={(e) => updateAnswer('feedback', e.target.value)}
-              placeholder="כתבו את הערותיכם כאן..."
-              className="w-full h-40 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-slate-800 dark:text-slate-100 transition-all duration-150 resize-none font-sans"
-            />
-
-            <div className="flex gap-4 mt-10">
-              <button 
-                onClick={handlePrev}
-                disabled={isSubmitting}
-                className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150 disabled:opacity-50"
-              >
-                חזרה
-              </button>
-              <button 
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="w-2/3 py-3 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all duration-200 flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>שולח משוב...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>שליחת משוב סופי</span>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* שלב 8: מסך הצלחה ואנימציית סיום */}
-        {step === 8 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-8 md:p-12 shadow-xl transition-all duration-300 text-center relative overflow-hidden">
-            
-            {/* אלמנטים צבעוניים נופלים (קונפטי CSS) */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              {[...Array(20)].map((_, i) => {
-                const colors = ['bg-indigo-500', 'bg-purple-500', 'bg-amber-400', 'bg-emerald-500', 'bg-rose-500'];
-                const randomColor = colors[Math.floor(Math.random() * colors.length)];
-                const randomLeft = `${Math.random() * 100}%`;
-                const randomDelay = `${Math.random() * 3}s`;
-                const randomDuration = `${3 + Math.random() * 4}s`;
-                return (
-                  <div 
-                    key={i} 
-                    className={`absolute w-3 h-3 rounded-full opacity-70 animate-confetti ${randomColor}`}
-                    style={{
-                      left: randomLeft,
-                      top: '-10px',
-                      animationDelay: randomDelay,
-                      animationDuration: randomDuration,
-                    }}
-                  ></div>
-                );
-              })}
-            </div>
-
-            <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-500 dark:text-emerald-400 flex items-center justify-center mb-6 mx-auto shadow-inner shadow-emerald-500/10">
-              <svg className="w-10 h-10 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.5" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-
-            <h1 className="text-3xl font-extrabold mb-4 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
-              המשוב התקבל בהצלחה!
-            </h1>
-            
-            <p className="text-slate-500 dark:text-slate-400 text-base md:text-lg mb-8 leading-relaxed max-w-md mx-auto">
-              תודה רבה שהקדשת מזמנך! התשובות שלך נרשמו ישירות בטופס הגוגל שלנו. אנו מעריכים מאוד את השותפות שלך בקידום חדשנות, טכנולוגיה ובינה מלאכותית.
-            </p>
-
-            <button 
-              onClick={() => {
-                setFormData({
-                  relevance: 0,
-                  efficiency: 0,
-                  confidence: 0,
-                  satisfaction: 0,
-                  continuation: '',
-                  preferredTool: '',
-                  feedback: ''
-                });
-                setStep(0);
-              }}
-              className="py-3 px-8 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-150 inline-flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5" />
-              </svg>
-              <span>מילוי מחדש</span>
-            </button>
-          </div>
-        )}
-
-      </main>
-
-      {/* FOOTER עם השראה מקצועית */}
-      <footer className="relative z-10 text-center py-8 text-xs text-slate-400 dark:text-slate-600">
-        <p>פלטפורמת משוב אינטראקטיבית © {new Date().getFullYear()}</p>
-        <p className="mt-1">מקדם חדשנות ובינה מלאכותית במערכי בריאות וסיעוד קליני</p>
-      </footer>
-
-      {/* --- אלמנטים מוסתרים לחיבור הטופס לגוגל פורמס --- */}
-      <form 
-        ref={formRef}
-        id="google-form"
-        action="https://docs.google.com/forms/d/e/1FAIpQLSdU-VGGaOpFomU8zBMWBGOGu6BOpCxyF8g6DcXV2WqLDNXgJQ/formResponse"
-        method="POST"
-        target="hidden_iframe"
-        className="hidden"
-      >
-        <input type="hidden" name="entry.1354847855" id="g-relevance" />
-        <input type="hidden" name="entry.42177787" id="g-efficiency" />
-        <input type="hidden" name="entry.729909560" id="g-confidence" />
-        <input type="hidden" name="entry.771194989" id="g-satisfaction" />
-        <input type="hidden" name="entry.552114596" id="g-continuation" />
-        <input type="hidden" name="entry.1239429889" id="g-tool" />
-        <input type="hidden" name="entry.351607428" id="g-feedback" />
-      </form>
-      
-      {/* ה-iframe הנסתר שאליו נשלח הטופס */}
-      <iframe 
-        name="hidden_iframe" 
-        id="hidden_iframe" 
-        className="hidden"
-        onLoad={() => setIframeLoaded(true)}
-      ></iframe>
-
-      {/* סגנונות מיוחדים של האנימציות הכלולות */}
-      <style>{`
+            }
+        }
+    </script>
+    <!-- React & Babel for direct browser rendering -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Google Fonts (Assistant) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Assistant', sans-serif;
+        }
         @keyframes confetti {
-          0% { transform: translateY(-10px) rotate(0deg); }
-          100% { transform: translateY(100vh) rotate(360deg); }
+            0% { transform: translateY(-10px) rotate(0deg); }
+            100% { transform: translateY(100vh) rotate(360deg); }
         }
         .animate-confetti {
-          animation: confetti linear infinite;
+            animation: confetti linear infinite;
         }
-      `}</style>
-    </div>
-  );
-}
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300">
 
-// קומפוננטת בחירת דירוג כוכבים אינטראקטיבית מותאמת אישית
-function StarRatingInput({ value, onChange }) {
-  const [hoverValue, setHoverValue] = useState(0);
+    <div id="root"></div>
 
-  return (
-    <div className="py-6 flex flex-col items-center">
-      <div className="flex gap-4 mb-4 flex-row-reverse" onMouseLeave={() => setHoverValue(0)}>
-        {[5, 4, 3, 2, 1].map((star) => {
-          const isFilled = hoverValue ? star <= hoverValue : star <= value;
-          return (
-            <button
-              key={star}
-              type="button"
-              onClick={() => onChange(star)}
-              onMouseEnter={() => setHoverValue(star)}
-              className="focus:outline-none transition-transform active:scale-90 scale-100 hover:scale-110"
-            >
-              <svg 
-                className={`w-12 h-12 md:w-14 md:h-14 transition-all duration-150 ${
-                  isFilled ? 'text-indigo-500 fill-indigo-500 drop-shadow-[0_0_10px_rgba(99,102,241,0.3)]' : 'text-slate-300 dark:text-slate-700 fill-none'
-                }`} 
-                viewBox="0 0 24 24" 
-                stroke="currentColor" 
-                strokeWidth="1.5"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499c.173-.427.76-.427.933 0l2.368 5.862a.75.75 0 00.565.41l6.23.51c.467.038.654.618.31.916l-4.707 4.1a.75.75 0 00-.223.687l1.451 6.136c.109.462-.397.83-.801.579l-5.388-3.334a.75.75 0 00-.73 0l-5.388 3.334c-.404.251-.91-.117-.801-.579l1.451-6.136a.75.75 0 00-.223-.687L1.13 11.29c-.344-.298-.157-.878.31-.916l6.23-.51a.75.75 0 00.565-.41l2.367-5.863z" />
-              </svg>
-            </button>
-          );
-        })}
-      </div>
-      
-      {/* תווית דינמית של בחירת המשתמש */}
-      <div className="h-10 mt-2 flex justify-center items-center">
-        {(hoverValue || value) > 0 ? (
-          <div className={`px-4 py-1.5 rounded-full border text-sm font-bold shadow-sm transition-all duration-200 ${RATING_COLORS[hoverValue || value]}`}>
-            {RATING_LABELS[hoverValue || value]}
-          </div>
-        ) : (
-          <span className="text-xs text-slate-400">בחרו כוכב כדי לדרג</span>
-        )}
-      </div>
-    </div>
-  );
-}
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const RATING_LABELS = {
+            1: 'כלל לא',
+            2: 'במידה מועטה',
+            3: 'במידה בינונית',
+            4: 'במידה רבה',
+            5: 'במידה רבה מאוד'
+        };
+
+        const RATING_COLORS = {
+            1: 'text-red-500 bg-red-500/10 dark:bg-red-500/20 border-red-200 dark:border-red-800',
+            2: 'text-orange-500 bg-orange-500/10 dark:bg-orange-500/20 border-orange-200 dark:border-orange-800',
+            3: 'text-amber-500 bg-amber-500/10 dark:bg-amber-500/20 border-amber-200 dark:border-amber-800',
+            4: 'text-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/20 border-indigo-200 dark:border-indigo-800',
+            5: 'text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-200 dark:border-emerald-800'
+        };
+
+        function App() {
+            const [darkMode, setDarkMode] = useState(true);
+            const [step, setStep] = useState(0); // 0: פתיח, 1-7: שאלות, 8: מסך הצלחה
+            const [submitted, setSubmitted] = useState(false);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [errors, setErrors] = useState({});
+
+            const [formData, setFormData] = useState({
+                relevance: 0,       // entry.1354847855
+                efficiency: 0,      // entry.42177787
+                confidence: 0,      // entry.729909560
+                satisfaction: 0,    // entry.771194989
+                continuation: '',   // entry.552114596
+                preferredTool: '',  // entry.1239429889
+                feedback: ''        // entry.351607428
+            });
+
+            const quickTools = ['NotebookLM', 'Gemini', 'ChatGPT', 'OpenEvidence', 'אחר...'];
+
+            useEffect(() => {
+                if (darkMode) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            }, [darkMode]);
+
+            const updateAnswer = (key, value) => {
+                setFormData(prev => ({ ...prev, [key]: value }));
+                if (errors[key]) {
+                    setErrors(prev => ({ ...prev, [key]: null }));
+                }
+            };
+
+            const handleNext = () => {
+                if (validateStep(step)) {
+                    setStep(prev => prev + 1);
+                }
+            };
+
+            const handlePrev = () => {
+                setStep(prev => Math.max(0, prev - 1));
+            };
+
+            const validateStep = (currentStep) => {
+                const newErrors = {};
+                if (currentStep === 1 && formData.relevance === 0) newErrors.relevance = 'אנא בחרו דירוג כדי להמשיך';
+                if (currentStep === 2 && formData.efficiency === 0) newErrors.efficiency = 'אנא בחרו דירוג כדי להמשיך';
+                if (currentStep === 3 && formData.confidence === 0) newErrors.confidence = 'אנא בחרו דירוג כדי להמשיך';
+                if (currentStep === 4 && formData.satisfaction === 0) newErrors.satisfaction = 'אנא בחרו דירוג כדי להמשיך';
+                if (currentStep === 5 && !formData.continuation) newErrors.continuation = 'אנא בחרו את אחת האפשרויות כדי להמשיך';
+                
+                setErrors(newErrors);
+                return Object.keys(newErrors).length === 0;
+            };
+
+            const formRef = useRef(null);
+
+            const handleSubmit = (e) => {
+                if (e) e.preventDefault();
+                setIsSubmitting(true);
+
+                // הזנת הנתונים לטופס הנסתר שפונה לגוגל
+                document.getElementById('g-relevance').value = formData.relevance;
+                document.getElementById('g-efficiency').value = formData.efficiency;
+                document.getElementById('g-confidence').value = formData.confidence;
+                document.getElementById('g-satisfaction').value = formData.satisfaction;
+                document.getElementById('g-continuation').value = formData.continuation;
+                document.getElementById('g-tool').value = formData.preferredTool;
+                document.getElementById('g-feedback').value = formData.feedback;
+
+                // שליחת הטופס הנסתר
+                formRef.current.submit();
+
+                // מעבר ישיר למסך הצלחה לאחר אנימציה של 1.5 שניות
+                setTimeout(() => {
+                    setIsSubmitting(false);
+                    setSubmitted(true);
+                    setStep(8);
+                }, 1500);
+            };
+
+            const progressPercent = Math.min(100, Math.round((step / 7) * 100));
+
+            return (
+                <div className="min-h-screen relative overflow-x-hidden transition-colors duration-300">
+                    
+                    {/* רקע דקורטיבי עתידני */}
+                    <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                    <div className="absolute bottom-10 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                    {/* תפריט עליון קומפקטי */}
+                    <header className="relative z-10 max-w-4xl mx-auto px-4 py-4 flex justify-between items-center border-b border-slate-200 dark:border-slate-800/60">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-600/30 text-white font-bold">
+                                AI
+                            </div>
+                            <span className="font-bold text-lg tracking-wide bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
+                                חדשנות ובריאות
+                            </span>
+                        </div>
+                        
+                        <button 
+                            onClick={() => setDarkMode(!darkMode)}
+                            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all duration-200 focus:outline-none"
+                            title={darkMode ? "מצב יום" : "מצב לילה"}
+                        >
+                            {darkMode ? (
+                                <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 9h-1m14.071-7.071l-.707.707M6.343 17.657l-.707.707m2.828-9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                </svg>
+                            ) : (
+                                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                                </svg>
+                            )}
+                        </button>
+                    </header>
+
+                    {/* אזור התוכן הראשי */}
+                    <main className="relative z-10 max-w-2xl mx-auto px-4 py-8 md:py-16">
+                        
+                        {/* בר התקדמות מונחה-שלבים */}
+                        {step > 0 && step < 8 && (
+                            <div className="mb-8">
+                                <div className="flex justify-between items-center text-xs text-slate-400 mb-2">
+                                    <span>שלב {step} מתוך 7</span>
+                                    <span className="font-semibold text-indigo-500 dark:text-indigo-400">{progressPercent}% הושלם</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300 ease-out"
+                                        style={{ width: `${progressPercent}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        )}
+
+                        {}
+                        {/* שלב 0: מסך פתיחה והוראות */}
+                        {step === 0 && (
+                            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-10 shadow-xl transition-all duration-300">
+                                <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center mb-6 mx-auto">
+                                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                
+                                <h1 className="text-3xl font-extrabold text-center mb-4 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
+                                    משוב לסדנת בינה מלאכותית
+                                </h1>
+                                
+                                <p className="text-center text-slate-500 dark:text-slate-400 text-base md:text-lg mb-8 leading-relaxed max-w-lg mx-auto">
+                                    תודה רבה על השתתפותך בסדנה! אנו מעריכים מאוד את דעתך. מילוי המשב אורך כדקה בלבד, ויסייע לנו לשפר את ההדרכות הבאות.
+                                </p>
+
+                                <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/30 dark:border-indigo-900/30 rounded-2xl p-4 mb-8">
+                                    <h2 className="font-bold text-sm text-indigo-700 dark:text-indigo-400 mb-2">הנחיות לדירוג:</h2>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                        אנא דרגו את מידת הסכמתכם עם ההיגדים הבאים בסולם של <span className="font-bold">1 עד 5</span>, כאשר:
+                                        <br />
+                                        <span className="inline-flex flex-wrap gap-x-2 gap-y-1 mt-1 font-semibold text-indigo-600/90 dark:text-indigo-400">
+                                            <span>1 = כלל לא</span>
+                                            <span>|</span>
+                                            <span>2 = במידה מועטה</span>
+                                            <span>|</span>
+                                            <span>3 = במידה בינונית</span>
+                                            <span>|</span>
+                                            <span>4 = במידה רבה</span>
+                                            <span>|</span>
+                                            <span>5 = במידה רבה מאוד</span>
+                                        </span>
+                                    </p>
+                                </div>
+
+                                <button 
+                                    onClick={() => setStep(1)}
+                                    className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 active:scale-[0.98] transition-all duration-200 text-lg flex items-center justify-center gap-2"
+                                >
+                                    <span>בואו נתחיל במשוב</span>
+                                    <svg className="w-5 h-5 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* שלב 1: רלוונטיות התכנים */}
+                        {step === 1 && (
+                            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 1</span>
+                                <h2 className="text-xl md:text-2xl font-bold mb-6 text-slate-800 dark:text-slate-100 leading-snug">
+                                    עד כמה התכנים והכלים שהוצגו בסדנה <span className="text-indigo-500 font-extrabold">(OpenEvidence, Gemini, ChatGPT, NotebookLM)</span> רלוונטיים לעבודתך היומיומית בשטח?
+                                </h2>
+                                
+                                <StarRatingInput 
+                                    value={formData.relevance} 
+                                    onChange={(val) => updateAnswer('relevance', val)} 
+                                />
+
+                                {errors.relevance && (
+                                    <p className="text-red-500 text-sm mt-4 flex items-center gap-1 font-semibold animate-pulse">
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+                                        {errors.relevance}
+                                    </p>
+                                )}
+
+                                <div className="flex gap-4 mt-10">
+                                    <button onClick={handlePrev} className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150">חזרה</button>
+                                    <button onClick={handleNext} className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2">
+                                        <span>המשך</span>
+                                        <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* שלב 2: פוטנציאל יעילות */}
+                        {step === 2 && (
+                            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 2</span>
+                                <h2 className="text-xl md:text-2xl font-bold mb-6 text-slate-800 dark:text-slate-100 leading-snug">
+                                    <span className="border-b-2 border-indigo-500/30">פוטנציאל יעילות:</span> אני מאמין/ה ששילוב הכלים הללו בעבודה שלי ישפר את האפקטיביות או יחסוך לי זמן.
+                                </h2>
+                                
+                                <StarRatingInput 
+                                    value={formData.efficiency} 
+                                    onChange={(val) => updateAnswer('efficiency', val)} 
+                                />
+
+                                {errors.efficiency && (
+                                    <p className="text-red-500 text-sm mt-4 flex items-center gap-1 font-semibold animate-pulse">
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+                                        {errors.efficiency}
+                                    </p>
+                                )}
+
+                                <div className="flex gap-4 mt-10">
+                                    <button onClick={handlePrev} className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150">חזרה</button>
+                                    <button onClick={handleNext} className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2">
+                                        <span>המשך</span>
+                                        <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* שלב 3: תחושת ביטחון ראשונית */}
+                        {step === 3 && (
+                            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 3</span>
+                                <h2 className="text-xl md:text-2xl font-bold mb-6 text-slate-800 dark:text-slate-100 leading-snug">
+                                    <span className="border-b-2 border-indigo-500/30">תחושת ביטחון ראשונית:</span> בעקבות הסדנה, אני מרגיש/ה מספיק ביטחון להתחיל להתנסות בכלים הללו באופן עצמאי.
+                                </h2>
+                                
+                                <StarRatingInput 
+                                    value={formData.confidence} 
+                                    onChange={(val) => updateAnswer('confidence', val)} 
+                                />
+
+                                {errors.confidence && (
+                                    <p className="text-red-500 text-sm mt-4 flex items-center gap-1 font-semibold animate-pulse">
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+                                        {errors.confidence}
+                                    </p>
+                                )}
+
+                                <div className="flex gap-4 mt-10">
+                                    <button onClick={handlePrev} className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150">חזרה</button>
+                                    <button onClick={handleNext} className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2">
+                                        <span>המשך</span>
+                                        <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* שלב 4: שביעות רצון כללית */}
+                        {step === 4 && (
+                            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 4</span>
+                                <h2 className="text-xl md:text-2xl font-bold mb-6 text-slate-800 dark:text-slate-100 leading-snug">
+                                    <span className="border-b-2 border-indigo-500/30">שביעות רצון כללית:</span> באופן כללי, אני מרוצה מאיכות הסדנה, מהעברת החומר ומהמבנה שלה.
+                                </h2>
+                                
+                                <StarRatingInput 
+                                    value={formData.satisfaction} 
+                                    onChange={(val) => updateAnswer('satisfaction', val)} 
+                                />
+
+                                {errors.satisfaction && (
+                                    <p className="text-red-500 text-sm mt-4 flex items-center gap-1 font-semibold animate-pulse">
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+                                        {errors.satisfaction}
+                                    </p>
+                                )}
+
+                                <div className="flex gap-4 mt-10">
+                                    <button onClick={handlePrev} className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150">חזרה</button>
+                                    <button onClick={handleNext} className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2">
+                                        <span>המשך</span>
+                                        <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* שלב 5: המשכיות והכשרה מתקדמת */}
+                        {step === 5 && (
+                            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 5</span>
+                                <h2 className="text-xl md:text-2xl font-bold mb-6 text-slate-800 dark:text-slate-100 leading-snug">
+                                    במידה ותתקיים <span className="text-purple-500 font-bold">הכשרת המשך מתקדמת</span> בנושא, מהי מידת העניין שלך להשתתף בה?
+                                </h2>
+                                
+                                <div className="space-y-4">
+                                    {[
+                                        {
+                                            id: 'option-no',
+                                            label: 'לא מעוניין/ת בהכשרה נוספת.',
+                                            icon: (
+                                                <svg className="w-6 h-6 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            )
+                                        },
+                                        {
+                                            id: 'option-maybe',
+                                            label: 'מעוניין/ת, אך מעדיף/ה קודם לתרגל לבד בשטח.',
+                                            icon: (
+                                                <svg className="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                                </svg>
+                                            )
+                                        },
+                                        {
+                                            id: 'option-yes',
+                                            label: 'מעוניין/ת מאוד בהכשרת המשך מורחבת ומעמיקה יותר',
+                                            icon: (
+                                                <svg className="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                </svg>
+                                            )
+                                        }
+                                    ].map((opt) => {
+                                        const isSelected = formData.continuation === opt.label;
+                                        return (
+                                            <button
+                                                key={opt.id}
+                                                onClick={() => updateAnswer('continuation', opt.label)}
+                                                className={`w-full p-5 text-right rounded-2xl border transition-all duration-200 flex items-center justify-between gap-4 ${
+                                                    isSelected 
+                                                        ? 'bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-500 ring-2 ring-indigo-500/10' 
+                                                        : 'bg-slate-50/50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className="flex-shrink-0">{opt.icon}</div>
+                                                    <span className={`text-sm md:text-base font-semibold ${isSelected ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                        {opt.label}
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300 dark:border-slate-700'}`}>
+                                                    {isSelected && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {errors.continuation && (
+                                    <p className="text-red-500 text-sm mt-4 flex items-center gap-1 font-semibold animate-pulse">
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+                                        {errors.continuation}
+                                    </p>
+                                )}
+
+                                <div className="flex gap-4 mt-10">
+                                    <button onClick={handlePrev} className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150">חזרה</button>
+                                    <button onClick={handleNext} className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2">
+                                        <span>המשך</span>
+                                        <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* שלב 6: כלי להעמקה */}
+                        {step === 6 && (
+                            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 6</span>
+                                <h2 className="text-xl md:text-2xl font-bold mb-2 text-slate-800 dark:text-slate-100 leading-snug">
+                                    האם יש כלי ספציפי מבין אלו שהוצגו היום, שהיית רוצה להעמיק בו יותר?
+                                </h2>
+                                <p className="text-sm text-slate-400 mb-6">לחצו על הכלים לבחירה מהירה או הקלידו בחופשיות:</p>
+                                
+                                <div className="flex flex-wrap gap-2 mb-6">
+                                    {quickTools.map((tool) => {
+                                        const isSelected = formData.preferredTool === tool;
+                                        return (
+                                            <button
+                                                key={tool}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (tool === 'אחר...') {
+                                                        updateAnswer('preferredTool', '');
+                                                    } else {
+                                                        updateAnswer('preferredTool', tool);
+                                                    }
+                                                }}
+                                                className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all duration-150 ${
+                                                    isSelected 
+                                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' 
+                                                        : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600 text-slate-700 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                {tool}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <textarea
+                                    value={formData.preferredTool}
+                                    onChange={(e) => updateAnswer('preferredTool', e.target.value)}
+                                    placeholder="כתבו כאן את שם הכלי..."
+                                    className="w-full h-32 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-slate-800 dark:text-slate-100 transition-all duration-150 resize-none font-sans"
+                                />
+
+                                <div className="flex gap-4 mt-10">
+                                    <button onClick={handlePrev} className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150">חזרה</button>
+                                    <button onClick={handleNext} className="w-2/3 py-3 px-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-md transition-all duration-150 flex items-center justify-center gap-2">
+                                        <span>המשך</span>
+                                        <svg className="w-4 h-4 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* שלב 7: הערות נוספות לשיפור ושליחה ישירה */}
+                        {step === 7 && (
+                            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-xl transition-all duration-300">
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 mb-2 block">שאלה 7</span>
+                                <h2 className="text-xl md:text-2xl font-bold mb-2 text-slate-800 dark:text-slate-100 leading-snug">
+                                    הערות נוספות לשיפור
+                                </h2>
+                                <p className="text-sm text-slate-400 mb-6">יש לכם רעיון, פידבק מיוחד או הצעה לשיפור להכשרות הבאות? נשמח לשמוע:</p>
+
+                                <textarea
+                                    value={formData.feedback}
+                                    onChange={(e) => updateAnswer('feedback', e.target.value)}
+                                    placeholder="כתבו את הערותיכם כאן..."
+                                    className="w-full h-40 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-slate-800 dark:text-slate-100 transition-all duration-150 resize-none font-sans"
+                                />
+
+                                <div className="flex gap-4 mt-10">
+                                    <button 
+                                        type="button"
+                                        onClick={handlePrev}
+                                        disabled={isSubmitting}
+                                        className="w-1/3 py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-150 disabled:opacity-50"
+                                    >
+                                        חזרה
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={handleSubmit}
+                                        disabled={isSubmitting}
+                                        className="w-2/3 py-3 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all duration-200 flex items-center justify-center gap-2"
+                                    >
+                                        {isSubmitting ? (
+                                            <>
+                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                <span>שולח משוב...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>שליחת משוב סופי</span>
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* שלב 8: מסך הצלחה ואנימציית סיום */}
+                        {step === 8 && (
+                            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-8 md:p-12 shadow-xl transition-all duration-300 text-center relative overflow-hidden">
+                                
+                                {/* אלמנטים צבעוניים נופלים (קונפטי CSS) */}
+                                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                                    {[...Array(20)].map((_, i) => {
+                                        const colors = ['bg-indigo-500', 'bg-purple-500', 'bg-amber-400', 'bg-emerald-500', 'bg-rose-500'];
+                                        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                                        const randomLeft = `${Math.random() * 100}%`;
+                                        const randomDelay = `${Math.random() * 3}s`;
+                                        const randomDuration = `${3 + Math.random() * 4}s`;
+                                        return (
+                                            <div 
+                                                key={i} 
+                                                className={`absolute w-3 h-3 rounded-full opacity-70 animate-confetti ${randomColor}`}
+                                                style={{
+                                                    left: randomLeft,
+                                                    top: '-10px',
+                                                    animationDelay: randomDelay,
+                                                    animationDuration: randomDuration,
+                                                }}
+                                            ></div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-500 dark:text-emerald-400 flex items-center justify-center mb-6 mx-auto shadow-inner">
+                                    <svg className="w-10 h-10 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.5" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </div>
+
+                                <h1 className="text-3xl font-extrabold mb-4 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
+                                    המשוב התקבל בהצלחה!
+                                </h1>
+                                
+                                <p className="text-slate-500 dark:text-slate-400 text-base md:text-lg mb-8 leading-relaxed max-w-md mx-auto">
+                                    תודה רבה שהקדשת מזמנך! התשובות שלך נרשמו ישירות בטופס הגוגל שלנו. אנו מעריכים מאוד את השותפות שלך בקידום חדשנות, טכנולוגיה ובינה מלאכותית.
+                                </p>
+
+                                <button 
+                                    onClick={() => {
+                                        setFormData({
+                                            relevance: 0,
+                                            efficiency: 0,
+                                            confidence: 0,
+                                            satisfaction: 0,
+                                            continuation: '',
+                                            preferredTool: '',
+                                            feedback: ''
+                                        });
+                                        setStep(0);
+                                    }}
+                                    className="py-3 px-8 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-150 inline-flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5" />
+                                    </svg>
+                                    <span>מילוי מחדש</span>
+                                </button>
+                            </div>
+                        )}
+
+                    </main>
+
+                    {/* FOOTER */}
+                    <footer className="relative z-10 text-center py-8 text-xs text-slate-400 dark:text-slate-600">
+                        <p>פלטפורמת משוב אינטראקטיבית © {new Date().getFullYear()}</p>
+                        <p className="mt-1">מקדם חדשנות ובינה מלאכותית במערכי בריאות וסיעוד קליני</p>
+                    </footer>
+
+                    {/* --- אלמנטים מוסתרים לחיבור הטופס לגוגל פורמס --- */}
+                    <form 
+                        ref={formRef}
+                        id="google-form"
+                        action="https://docs.google.com/forms/d/e/1FAIpQLSdU-VGGaOpFomU8zBMWBGOGu6BOpCxyF8g6DcXV2WqLDNXgJQ/formResponse"
+                        method="POST"
+                        target="hidden_iframe"
+                        className="hidden"
+                    >
+                        <input type="hidden" name="entry.1354847855" id="g-relevance" />
+                        <input type="hidden" name="entry.42177787" id="g-efficiency" />
+                        <input type="hidden" name="entry.729909560" id="g-confidence" />
+                        <input type="hidden" name="entry.771194989" id="g-satisfaction" />
+                        <input type="hidden" name="entry.552114596" id="g-continuation" />
+                        <input type="hidden" name="entry.1239429889" id="g-tool" />
+                        <input type="hidden" name="entry.351607428" id="g-feedback" />
+                    </form>
+                    
+                    <iframe 
+                        name="hidden_iframe" 
+                        id="hidden_iframe" 
+                        className="hidden"
+                    ></iframe>
+                </div>
+            );
+        }
+
+        // קומפוננטת בחירת דירוג כוכבים
+        function StarRatingInput({ value, onChange }) {
+            const [hoverValue, setHoverValue] = useState(0);
+
+            return (
+                <div className="py-6 flex flex-col items-center">
+                    <div className="flex gap-4 mb-4 flex-row-reverse" onMouseLeave={() => setHoverValue(0)}>
+                        {[5, 4, 3, 2, 1].map((star) => {
+                            const isFilled = hoverValue ? star <= hoverValue : star <= value;
+                            return (
+                                <button
+                                    key={star}
+                                    type="button"
+                                    onClick={() => onChange(star)}
+                                    onMouseEnter={() => setHoverValue(star)}
+                                    className="focus:outline-none transition-transform active:scale-90 scale-100 hover:scale-110"
+                                >
+                                    <svg 
+                                        className={`w-12 h-12 md:w-14 md:h-14 transition-all duration-150 ${
+                                            isFilled ? 'text-indigo-500 fill-indigo-500 drop-shadow-[0_0_10px_rgba(99,102,241,0.3)]' : 'text-slate-300 dark:text-slate-700 fill-none'
+                                        }`} 
+                                        viewBox="0 0 24 24" 
+                                        stroke="currentColor" 
+                                        strokeWidth="1.5"
+                                    >
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499c.173-.427.76-.427.933 0l2.368 5.862a.75.75 0 00.565.41l6.23.51c.467.038.654.618.31.916l-4.707 4.1a.75.75 0 00-.223.687l1.451 6.136c.109.462-.397.83-.801.579l-5.388-3.334a.75.75 0 00-.73 0l-5.388 3.334c-.404.251-.91-.117-.801-.579l1.451-6.136a.75.75 0 00-.223-.687L1.13 11.29c-.344-.298-.157-.878.31-.916l6.23-.51a.75.75 0 00.565-.41l2.367-5.863z" />
+                                    </svg>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    
+                    <div className="h-10 mt-2 flex justify-center items-center">
+                        {(hoverValue || value) > 0 ? (
+                            <div className={`px-4 py-1.5 rounded-full border text-sm font-bold shadow-sm transition-all duration-200 ${RATING_COLORS[hoverValue || value]}`}>
+                                {RATING_LABELS[hoverValue || value]}
+                            </div>
+                        ) : (
+                            <span className="text-xs text-slate-400">בחרו כוכב כדי לדרג</span>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
